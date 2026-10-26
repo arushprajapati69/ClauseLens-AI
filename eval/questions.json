@@ -1,0 +1,47 @@
+[
+  {
+    "id": "q1_stayeasy_conflict",
+    "question": "Can I get a full refund if I cancel my hotel reservation 5 days before check-in?",
+    "scenario": {
+      "start_date": "2026-11-10",
+      "action_date": "2026-11-05",
+      "amount_paid": 12000
+    },
+    "expected_verdict": "CONFLICT",
+    "expected_conflict_docs": ["stayeasy_terms.md", "stayeasy_faq.md"],
+    "expected_keywords": ["50%", "24 hours", "refund"],
+    "category": "conflict_detection"
+  },
+  {
+    "id": "q2_voltedge_water_damage",
+    "question": "Is water damage or dropped earbuds covered under the VoltEdge warranty?",
+    "scenario": {},
+    "expected_verdict": "SUPPORTED",
+    "expected_keywords": ["liquid", "excluded", "physical or accidental damage"],
+    "category": "warranty_exclusion"
+  },
+  {
+    "id": "q3_clipstream_trial_deadline",
+    "question": "When must I cancel my ClipStream free trial to avoid being charged ₹499?",
+    "scenario": {},
+    "expected_verdict": "SUPPORTED",
+    "expected_keywords": ["24 hours", "₹499", "7"],
+    "category": "deadline_and_fee"
+  },
+  {
+    "id": "q4_transfer_booking_absent",
+    "question": "Can I transfer my hotel booking to another person or family member?",
+    "scenario": {},
+    "expected_verdict": "INSUFFICIENT_EVIDENCE",
+    "expected_keywords": [],
+    "category": "abstention_absent_clause"
+  },
+  {
+    "id": "q5_off_topic_query",
+    "question": "What is the capital city of France and how far is it from London?",
+    "scenario": {},
+    "expected_verdict": "INSUFFICIENT_EVIDENCE",
+    "expected_keywords": [],
+    "category": "abstention_off_topic"
+  }
+]
