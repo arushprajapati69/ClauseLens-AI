@@ -1,126 +1,146 @@
-# ClauseLens AI — Local Customer Policy Assistant
-**Hackathon Theme:** AI for Customer Experience  
-**Core Thesis:** *The LLM does language work only. Python owns retrieval, quote verification, arithmetic, conflicts, and abstention.*
+# ClauseLens AI
+
+**Understand any policy — in plain English.**
+
+ClauseLens is a free, open-source tool that helps you make sense of the policies, terms, and agreements that businesses send you. Upload any document and ask questions in plain language. Get clear answers, with the exact lines from the document so you can verify everything yourself.
 
 ---
 
-## 1. What is ClauseLens AI?
-ClauseLens AI is an open-source, 100% private desktop assistant for everyday consumers. Customers upload business policy documents (hotel cancellation policies, Terms of Service, hardware warranties, subscription contracts, FAQs) and ask natural-language questions about their personal situation:
-- *Can I get a refund if I cancel my booking 5 days before check-in?*
-- *Is water or liquid damage covered under this earbud warranty?*
-- *What happens if I cancel after the free trial?*
-- *Which fees, exclusions, or deadlines should I know before buying?*
-- *Why might my refund or warranty claim be rejected?*
+## What it's for
 
-ClauseLens eliminates the two most dangerous failure modes of consumer RAG: **hallucinated deadline math** and **silent conflict resolution**.
+Ever tried to figure out whether you can get a refund, what's covered under your warranty, or what happens if you cancel a subscription — and ended up more confused after reading the policy than before?
 
----
+ClauseLens is built for exactly that. Some things it's great at:
 
-## 2. System Architecture & Three-Gate Philosophy
+- *"Can I get a refund if I cancel 3 days before check-in?"*
+- *"Is water damage covered under my earbuds warranty?"*
+- *"What happens if I miss a payment?"*
+- *"Are there any hidden fees I should know about?"*
+- *"Why might they reject my claim?"*
 
-```
-Upload Docs (.pdf, .txt, .md) 
-   │
-   ▼
-[Ingestion: clause-aware chunking (numbered sections, headings, Q&As)]
-   │
-   ▼
-[Embedding & Caching: nomic-embed-text -> disk cache keyed by SHA256]
-   │
-   ▼
-Customer Question (+ optional scenario: start_date, action_date, amount_paid)
-   │
-   ▼
-[Gate 0: Input check]  Reject empty or > 1,000 characters
-   │
-   ▼
-[Hybrid Retrieval: Cosine Similarity + Keyword Overlap Boost]
-   │── best score < MIN_RETRIEVAL_SCORE ──► [INSUFFICIENT_EVIDENCE] (LLM never called)
-   ▼
-[Algorithmic Conflict Pairing: Cross-document chunks with similarity >= PAIR_SIM_THRESHOLD]
-   │── Deterministic ranking: numeric mismatches (+10), polarity cues (+5)
-   │── LLM Judge evaluates top candidate pairs
-   └── Gate 2 verifies BOTH quotes verbatim in source chunks
-   ▼
-[LLM Answer Generation: llama3.1:8b with JSON Schema]
-   │── Context wrapped in untrusted <excerpt chunk_id="..."> delimiters
-   ▼
-[Gate 1: Schema & Chunk Allowlist]
-   │── Enforces required JSON keys and allowed claim types
-   │── Rejects any cited chunk_id not in the retrieved set
-   ▼
-[Gate 2: Verbatim Quote Verification & Gate 2b Numeric Grounding]
-   │── Normalized character-by-character quote verification (drops invalid claims)
-   │── Checks that every number, fee, and duration is grounded in source text or scenario
-   ▼
-[Deterministic Tools: Python Scenario Calculators]
-   │── days_between(start_date, action_date)
-   └── apply_refund_tiers(days_notice, amount_paid, tiers, flat_fee)
-       └── Dual-reading financial math if documents conflict
-   ▼
-[Deterministic Verdict Engine]
-   └── SUPPORTED | PARTIAL | CONFLICT | INSUFFICIENT_EVIDENCE | ERROR
-   ▼
-[Streamlit UI: 7-Section Structured Customer View + Auditable Trust Gate Trace]
-```
+It reads the document for you, finds the relevant parts, checks them for accuracy, and gives you a straight answer.
 
 ---
 
-## 3. Calibrated Thresholds & Rationale
+## What makes it different
 
-All tunables live centrally in `config.py`:
+Most AI tools either hallucinate answers or give vague summaries with no way to check the source. ClauseLens does things differently:
 
-| Parameter | Calibrated Value | Engineering Rationale |
-| :--- | :--- | :--- |
-| `MIN_RETRIEVAL_SCORE` | **0.38** | Calibrated against the evaluation benchmark. Cosine scores below 0.38 represent unrelated boilerplate (e.g. general preamble or off-topic queries). Setting the gate at 0.38 reliably triggers deterministic `INSUFFICIENT_EVIDENCE` abstention without wasting LLM compute. |
-| `PAIR_SIM_THRESHOLD` | **0.50** | Determines whether two chunks from different documents discuss the "same topic" (e.g. cancellation deadlines). Below 0.50, candidate pairing produces spurious comparisons; at 0.50+, topic clustering isolates legitimate contradictions (such as FAQ 24-hour vs Terms 3–7 day policies). |
-| `MAX_CONFLICT_PAIRS` | **3** | Caps the maximum number of candidate pairs sent to the LLM judge to prevent quadratic latency overhead on consumer CPUs. |
-| `CHUNK_MAX_CHARS` | **900** | Preserves complete numbered clauses and sub-sections while fitting within the local model's optimal attention span. |
-| `LLM_TIMEOUT` | **120.0s** | Client timeout to prevent UI hangs during multi-step CPU inference. |
+**Every quote is verified.** When ClauseLens shows you text from a document, it checks it character-by-character against the original. If it doesn't match exactly, it gets left out.
+
+**No guessing on numbers.** Refund percentages, notice periods, and fees are calculated by code — not by the AI. So you get the real number, not a probabilistic guess.
+
+**Contradictions are surfaced.** If two parts of a policy say different things (which happens more often than you'd think), ClauseLens shows you both sides instead of picking one silently.
+
+**Honest when it doesn't know.** If the answer isn't in the document, ClauseLens says so and tells you what to ask the company directly.
+
+**100% private.** Your documents never leave your machine. Everything runs locally.
 
 ---
 
-## 4. How to Run Locally
+## Getting started
 
-### Prerequisites
-- Python 3.10+
-- [Ollama](https://ollama.ai) installed and running locally on port 11434.
+### What you need
 
-### Step-by-Step Setup
+- Python 3.10 or newer
+- [Ollama](https://ollama.ai) installed and running on your machine
+
+### Setup (5 minutes)
+
 ```bash
-# 1. Pull the required local models in Ollama
+# 1. Download the two AI models that ClauseLens uses
 ollama pull llama3.1:8b
 ollama pull nomic-embed-text
 
-# 2. Navigate to project directory
+# 2. Clone the repo and go into the project folder
+git clone https://github.com/your-username/clauselens-ai.git
 cd clauselens-ai
 
-# 3. Create and activate a virtual environment
+# 3. Create a virtual environment
 python -m venv venv
-# On Windows PowerShell:
+
+# On Windows:
 .\venv\Scripts\Activate.ps1
-# On Linux/macOS:
+# On Mac/Linux:
 source venv/bin/activate
 
 # 4. Install dependencies
 pip install -r requirements.txt
 
-# 5. Run the unit test suite (LLM-free, pure Python)
-pytest -o pythonpath=.
-
-# 6. Run the automated evaluation benchmark
-python eval/run_eval.py
-
-# 7. Launch the Streamlit application
+# 5. Launch
 streamlit run app.py
 ```
 
+That's it. The app will open at **http://localhost:8501**
+
 ---
 
-## 5. Limitations & Assumptions to Validate
+## How to use it
 
-1. **Scanned Documents & OCR:** The current implementation uses pure text extraction via `pypdf`. Scanned documents, handwritten receipts, and bitmap images are unsupported in this MVP and are rejected with a descriptive error.
-2. **Local Model Reasoning:** `llama3.1:8b` is highly capable at text extraction, but complex conditional legalese can occasionally yield dropped claims. The three-gate system catches these failures and downgrades to `PARTIAL` rather than presenting false information.
-3. **Document Versioning:** ClauseLens operates on the text of uploaded files. If an uploaded policy is outdated, the system cannot detect external revisions unless an explicit date is contained within the document.
-4. **Hinglish & Regional Consumer Agreements:** Consumer documents in India often mix Hindi and English or use colloquial expressions. The MVP targets English policy text; multilingual performance must be validated.
-5. **Legal Framing:** ClauseLens is designed as an automated policy-understanding assistant and dispute-preparation tool. It explicitly states in every view that it does not provide formal legal advice.
+1. **Upload a document** — any PDF, text file, or Markdown file works. Terms and conditions, warranty cards, subscription agreements, FAQ pages, lease agreements, anything.
+
+2. **Ask your question** — type naturally, like you'd ask a friend. *"Can I get my money back?"* or *"What's not covered?"*
+
+3. **Add dates and amounts if relevant** — if you want an exact refund calculation, you can enter your check-in date, cancellation date, and how much you paid.
+
+4. **Read the answer** — ClauseLens shows you a plain-English answer plus the exact quote from the document so you can double-check it yourself.
+
+5. **Copy the support email** — if you need to contact the company, there's a ready-to-send email that cites the relevant clauses. Companies tend to respond better when you quote their own policy back at them.
+
+---
+
+## Running the tests
+
+The core logic (quote verification, conflict detection, refund math) is tested without needing any AI at all:
+
+```bash
+pytest tests/
+```
+
+All 29 tests should pass in about 1–2 seconds.
+
+---
+
+## Hardware requirements
+
+| Model | RAM needed | Notes |
+|-------|-----------|-------|
+| llama3.1:8b (default) | ~8 GB | Best accuracy |
+| llama3.2:3b (lite) | ~4 GB | Faster, works on most laptops |
+
+Both work on CPU — no GPU needed.
+
+---
+
+## What it can and can't do
+
+**It can:**
+- Read PDF, TXT, and Markdown files
+- Handle multiple documents at once and compare them
+- Calculate exact refund amounts when you provide dates and payment amount
+- Flag contradictions between different documents
+- Generate a draft email for customer support
+
+**It can't (yet):**
+- Read scanned documents or images (only searchable PDFs with actual text)
+- Process documents in languages other than English
+- Access the internet or check for newer versions of a policy
+- Give formal legal advice
+
+---
+
+## Contributing
+
+Bug reports, feature suggestions, and pull requests are very welcome. The codebase is intentionally straightforward — a first-year student should be able to follow it.
+
+---
+
+## License
+
+MIT License — free to use, modify, and share.
+
+---
+
+## Disclaimer
+
+ClauseLens helps you understand what a policy says. It is not a substitute for legal advice. For any decision involving significant money or your legal rights, please consult a qualified professional.
