@@ -108,7 +108,7 @@ class LLMClient:
                 model=chosen_model,
                 messages=messages,
                 format=schema,
-                options={"temperature": 0.0, "num_predict": 180}
+                options={"temperature": 0.0, "num_predict": getattr(config, "MAX_PREDICT_TOKENS", 650)}
             )
             raw_content = response.message.content.strip()
             parsed = json.loads(raw_content)

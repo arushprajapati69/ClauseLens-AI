@@ -6,6 +6,7 @@ LOW_RAM_GEN_MODEL = "llama3.2:3b"
 EMBED_MODEL = "nomic-embed-text"
 OLLAMA_HOST = "http://localhost:11434"
 LLM_TIMEOUT = 120.0  # seconds
+MAX_PREDICT_TOKENS = 650
 
 # Ingestion & Chunking
 CHUNK_MAX_CHARS = 900
