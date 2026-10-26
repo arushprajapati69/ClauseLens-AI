@@ -76,10 +76,49 @@ html, body, [class*="css"] {
     50%      { box-shadow: 0 0 0 6px rgba(79,70,229,0); }
 }
 
-/* ───────────── Hide default chrome ───────────── */
-#MainMenu, footer, header          { display:none !important; }
+/* ───────────── Hide default chrome (keep header functional for sidebar toggle) ───────────── */
+#MainMenu, footer                  { display:none !important; }
 .stDeployButton                    { display:none !important; }
 [data-testid="stToolbar"]          { display:none !important; }
+
+/* Keep header functional so sidebar collapse/expand toggle is always visible */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    height: 3.5rem !important;
+    z-index: 99 !important;
+}
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    position: fixed !important;
+    top: 12px !important;
+    left: 14px !important;
+    z-index: 99999 !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    padding: 4px 8px !important;
+    cursor: pointer !important;
+    transition: all .15s ease !important;
+}
+[data-testid="collapsedControl"]:hover {
+    background: #1e293b !important;
+    border-color: #475569 !important;
+}
+[data-testid="collapsedControl"] svg {
+    fill: #f8fafc !important;
+    stroke: #f8fafc !important;
+}
+[data-testid="stSidebarCollapseButton"] button {
+    color: #94a3b8 !important;
+    border-radius: 6px !important;
+}
+[data-testid="stSidebarCollapseButton"] button:hover {
+    color: #f8fafc !important;
+    background: #1e293b !important;
+}
 
 /* ───────────── Page background ───────────── */
 .stApp { background:#f8fafc; }
@@ -625,6 +664,29 @@ def _chip(claim: dict, delay: int = 0) -> str:
     return f'<span class="chip chip-{t}" style="{sty}">{icon} <b>{lbl}:</b> {text}</span>'
 
 
+def _load_sample_policies():
+    samples = [
+        ("StayEasy Hotel — Terms & Conditions", os.path.join(_here, "sample_docs", "stayeasy_terms.md")),
+        ("StayEasy Hotel — FAQ",                os.path.join(_here, "sample_docs", "stayeasy_faq.md")),
+        ("VoltEdge Earbuds — Warranty",         os.path.join(_here, "sample_docs", "voltedge_warranty.md")),
+        ("ClipStream — Subscription Terms",     os.path.join(_here, "sample_docs", "clipstream_subscription.md")),
+    ]
+    loaded = 0
+    for label, fpath in samples:
+        if not os.path.exists(fpath):
+            st.warning(f"File not found: {fpath}")
+            continue
+        if label not in st.session_state.indexed_docs:
+            with st.spinner(f"Loading {label}…"):
+                n = _index_file(fpath, label)
+            ext = os.path.splitext(fpath)[1].lstrip(".")
+            st.session_state.indexed_docs[label] = {"file": fpath, "chunks": n, "ext": ext}
+            loaded += 1
+    if loaded:
+        st.toast(f"📚 {loaded} policies loaded!", icon="✅")
+    st.rerun()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Sidebar
 # ─────────────────────────────────────────────────────────────────────────────
@@ -645,6 +707,7 @@ with st.sidebar:
         type=["pdf", "txt", "md"],
         accept_multiple_files=True,
         label_visibility="collapsed",
+        key="sb_uploader"
     )
     os.makedirs(".cache", exist_ok=True)
 
@@ -663,28 +726,8 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Could not read **{uf.name}**: {e}")
 
-    if st.button("📚 Load Example Policies", use_container_width=True):
-        # Map: display_label → actual file path (so ext is extracted from real path)
-        samples = [
-            ("StayEasy Hotel — Terms & Conditions", os.path.join(_here, "sample_docs", "stayeasy_terms.md")),
-            ("StayEasy Hotel — FAQ",                os.path.join(_here, "sample_docs", "stayeasy_faq.md")),
-            ("VoltEdge Earbuds — Warranty",         os.path.join(_here, "sample_docs", "voltedge_warranty.md")),
-            ("ClipStream — Subscription Terms",     os.path.join(_here, "sample_docs", "clipstream_subscription.md")),
-        ]
-        loaded = 0
-        for label, fpath in samples:
-            if not os.path.exists(fpath):
-                st.warning(f"File not found: {fpath}")
-                continue
-            if label not in st.session_state.indexed_docs:
-                with st.spinner(f"Loading {label}…"):
-                    n = _index_file(fpath, label)
-                ext = os.path.splitext(fpath)[1].lstrip(".")
-                st.session_state.indexed_docs[label] = {"file": fpath, "chunks": n, "ext": ext}
-                loaded += 1
-        if loaded:
-            st.toast(f"📚 {loaded} policies loaded!", icon="✅")
-        st.rerun()
+    if st.button("📚 Load Example Policies", use_container_width=True, key="sb_load_examples"):
+        _load_sample_policies()
 
     # Loaded docs list
     if st.session_state.indexed_docs:
@@ -793,7 +836,57 @@ if not st.session_state.indexed_docs:
       </div>
     </div>
     """, unsafe_allow_html=True)
-    st.info("👈 **Get started:** Upload a policy in the sidebar, or click **\"Load Example Policies\"** to try with sample documents.", icon="ℹ️")
+    st.markdown('<div style="margin-top:28px;"></div>', unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 1], gap="medium")
+    with c1:
+        st.markdown("""
+        <div style="background:#ffffff;border:1.5px solid #e2e8f0;border-radius:12px;padding:22px 20px 16px;height:100%;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+            <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:6px;">🚀 Try with Sample Documents</div>
+            <div style="font-size:13px;color:#64748b;line-height:1.55;margin-bottom:18px;">
+                Instant 1-click test with 4 realistic policies (hotel booking, electronics warranty, streaming subscription).
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("📚 Load Example Policies", use_container_width=True, type="primary", key="hero_load_examples"):
+            _load_sample_policies()
+
+    with c2:
+        st.markdown("""
+        <div style="background:#ffffff;border:1.5px solid #e2e8f0;border-radius:12px;padding:22px 20px 16px;height:100%;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+            <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:6px;">📁 Upload Your Own Policy</div>
+            <div style="font-size:13px;color:#64748b;line-height:1.55;margin-bottom:12px;">
+                Drag and drop your PDF, TXT, or Markdown document here. Processed 100% on this device.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        hero_uploaded = st.file_uploader(
+            "Upload policy file",
+            type=["pdf", "txt", "md"],
+            accept_multiple_files=True,
+            key="hero_uploader",
+            label_visibility="collapsed"
+        )
+        if hero_uploaded:
+            for uf in hero_uploaded:
+                if uf.name not in st.session_state.indexed_docs:
+                    tmp = os.path.join(".cache", uf.name)
+                    with open(tmp, "wb") as f:
+                        f.write(uf.getbuffer())
+                    try:
+                        with st.spinner(f"Reading {uf.name}…"):
+                            n = _index_file(tmp, uf.name)
+                        ext = os.path.splitext(uf.name)[1].lstrip(".")
+                        st.session_state.indexed_docs[uf.name] = {"file": uf.name, "chunks": n, "ext": ext}
+                        st.toast(f"✅ {uf.name} ready", icon="📄")
+                    except Exception as e:
+                        st.error(f"Could not read **{uf.name}**: {e}")
+            st.rerun()
+
+    st.markdown("""
+    <div style="margin-top:24px;text-align:center;font-size:12.5px;color:#94a3b8;">
+      👈 <b>Sidebar tip:</b> You can also toggle the left sidebar (click the arrow icon in the top left) to manage uploaded documents or change settings anytime.
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 
